@@ -272,7 +272,7 @@ for epoch in range(start_epoch, args.num_epochs):
             print(f"Epoch {epoch+1} Step {step} - Validation Loss: {avg_val_epoch_loss:.4f}, Validation Accuracy: {avg_val_epoch_accuracy:.4f}")
 
             # Save model
-            model_save_path = f'{model_dir}/model_epoch_{epoch+1}_step_{step}.bin'
+            model_save_path = f'{model_dir}/model_epoch_{epoch+1}.bin'
             save_checkpoint(model, optimizer, lr_scheduler, epoch, step, best_val_accuracy, model_save_path)
             print(f"Model saved to {model_save_path}")
 
