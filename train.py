@@ -19,6 +19,7 @@ from datetime import datetime
 from tqdm import tqdm
 from torch.nn import Dropout
 # python train.py --dataset_identifier neg40 --train_data data/data-train-neg40-dragon-roberta.pkl --resume_from_checkpoint models/cross-encoder/stsb-roberta-large_neg40_20240627_181927/model_epoch_2_step_270000.bin --device cuda:7
+# python train.py --dataset_identifier neg40 --train_data data/data-train-neg40-dragon-roberta.pkl --learning_rate 0.5e-6 --device cuda:3
 # Argument parser
 parser = argparse.ArgumentParser(description='Train a sequence classification model with configurable hyperparameters.')
 parser.add_argument('--model_identifier', type=str, default="cross-encoder/stsb-roberta-large", help='Identifier for the model')

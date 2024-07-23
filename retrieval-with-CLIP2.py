@@ -6,6 +6,7 @@ import glob
 from tqdm import tqdm
 
 import torch
+from transformers import CLIPProcessor, CLIPModel, AutoProcessor, AutoModel
 from sentence_transformers import SentenceTransformer, util
 from PIL import Image, ImageFile
 
@@ -22,10 +23,10 @@ args = parser.parse_args()
 device = torch.device(args.device if torch.cuda.is_available() else "cpu")
 print(device)
 
-model_name = "clip-ViT-B-32"
+model_name = "google/siglip-so400m-patch14-384"
 image_folder_path = "/data/jwsuh/construction/sampled_test/"
-model = SentenceTransformer(model_name).to(device).eval()
-
+model = AutoModel.from_pretrained(model_name).to(device)
+processor = AutoProcessor.from_pretrained(model_name)
 
 # if args.model_save_path:
 #     checkpoint = torch.load(args.model_save_path, map_location=torch.device('cpu'))
@@ -57,17 +58,20 @@ def extract_class_from_filename(filename):
     return class_id
 
 # Inference function with top-50 ranking
-def infer_image_class(image_path, model, text_embeddings, k=50):
+def infer_image_class(image_path, model, processor, class_texts, k=50):
     # Load and preprocess the image
     image = Image.open(image_path)
     image = image.convert("RGB")
     
     # Encode the image 
-    image_embedding = model.encode(image, convert_to_tensor=True)
+    inputs = processor(text=class_texts, images=image, return_tensors="pt", padding=True).to(device)
+    outputs = model(**inputs)
     
     # Compute cosine similarities
-    cos_scores = util.pytorch_cos_sim(image_embedding, text_embeddings)[0]
-    top_k_indices = cos_scores.topk(k).indices.numpy()
+    logits_per_image  = outputs.logits_per_image[0]
+    # print(logits_per_image)
+    top_k_indices = logits_per_image.topk(k).indices.cpu().numpy().tolist()
+    # print(top_k_indices)
     return top_k_indices
 
 # Function to calculate Precision@k, Recall@k, and Accuracy@k
@@ -80,18 +84,16 @@ def compute_metrics(target, predictions, k):
     return precision, recall, accuracy
 
 # Metrics calculation for different top-k values
-def calculate_metrics(image_folder_path, model, class_texts, top_k_values=[i for i in range(1,51)]):
+def calculate_metrics(image_folder_path, model, processor, class_texts, top_k_values):
     total_images = 0
     top_k_precision = {k: [] for k in top_k_values}
     top_k_recall = {k: [] for k in top_k_values}
     top_k_accuracy = {k: [] for k in top_k_values}
 
-    text_embeddings = model.encode(class_texts, convert_to_tensor=True)
-    
     for filename in tqdm(os.listdir(image_folder_path)):
         if filename.endswith(".jpg"):
             image_path = os.path.join(image_folder_path, filename)
-            predicted_classes = infer_image_class(image_path, model, text_embeddings, k=50)
+            predicted_classes = infer_image_class(image_path, model, processor, class_texts, k=50)
             actual_class = extract_class_from_filename(filename) - 1  # Convert to 0-indexed
 
             total_images += 1
@@ -111,7 +113,7 @@ def calculate_metrics(image_folder_path, model, class_texts, top_k_values=[i for
 
 # Calculate metrics for top-1, top-5, top-10
 top_k_values = [i for i in range(1,51)]
-top_k_precision, top_k_recall, top_k_accuracy = calculate_metrics(image_folder_path, model, rules_list, top_k_values)
+top_k_precision, top_k_recall, top_k_accuracy = calculate_metrics(image_folder_path, model, processor, rules_list, top_k_values)
 
 for k in top_k_values:
     print(f"Top-{k} Precision: {top_k_precision[k]} \t Recall: {top_k_recall[k]} \n Accuracy: {top_k_accuracy[k]}")
